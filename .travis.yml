@@ -1,0 +1,16 @@
+language: rust
+
+rust:
+- nightly
+- beta
+
+addons:
+  rethinkdb: '2.3.5'
+
+before_script:
+- rethinkdb --port-offset 1 --directory rethinkdb_data1 --join localhost:29015 > /dev/null 2>&1 &
+- rethinkdb --port-offset 2 --directory rethinkdb_data2 --join localhost:29015 > /dev/null 2>&1 &
+
+script:
+- cargo test
+- cargo doc --no-deps

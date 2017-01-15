@@ -1,0 +1,17 @@
+[package]
+name = "derive-error"
+description = "Derive macro for Error using macros 1.1"
+version = "0.0.0"
+license = "MIT/Apache-2.0"
+repository = "https://github.com/rushmorem/derive-error"
+documentation = "https://docs.rs/derive-error"
+readme = "README.md"
+keywords = ["error", "derive"]
+authors = ["rushmorem <rushmore@webenchanter.com>"]
+
+[dependencies]
+syn = "0.10"
+quote = "0.3"
+
+[lib]
+proc-macro = true
