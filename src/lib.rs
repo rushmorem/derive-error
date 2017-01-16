@@ -1,3 +1,5 @@
+//! Derive custom errors using macros 1.1
+
 extern crate proc_macro;
 extern crate syn;
 #[macro_use]

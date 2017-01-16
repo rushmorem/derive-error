@@ -10,7 +10,7 @@ Add this crate to your dependencies section:-
 
 ```toml
 [dependencies]
-derive-error = "0.0.0"
+derive-error = "0.0.1"
 ```
 
 Import it in your `main.rs` or `lib.rs`:-
@@ -20,13 +20,18 @@ Import it in your `main.rs` or `lib.rs`:-
 extern crate derive-error;
 ```
 
-Deriving errors is simple. Here is an example:
+Deriving errors is simple. Simply create an enum for your errors as suggested [in the Rust book](https://doc.rust-lang.org/book/error-handling.html#error-handling-with-a-custom-type), add short descriptions for the enum variants using doc comments, throw in a `#[derive(Debug, Error)]` and you are done. Here is the example in the book implemented using this library:-
 
 ```rust,norun
-#[derive(Error)]
-pub enum Error {
-  Io(::std::io::Error),
+#[derive(Debug, Error)]
+enum CliError {
+  /// IO Error
+  Io(io::Error),
+  /// Failed to parse the CSV file
+  Csv(csv::Error),
+  /// No matching cities with a population were found
+  NotFound,
 }
 ```
 
-That's it!
+This will derive implementations for `Display`, `Error` and `From`.
