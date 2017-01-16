@@ -8,7 +8,7 @@ This crate uses macros 1.1 to derive custom errors.
 
 Add this crate to your dependencies section:-
 
-```text
+```toml
 [dependencies]
 derive-error = "0.0.0"
 ```

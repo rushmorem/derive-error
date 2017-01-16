@@ -12,6 +12,10 @@ authors = ["rushmorem <rushmore@webenchanter.com>"]
 [dependencies]
 syn = "0.10"
 quote = "0.3"
+case = "0.1"
 
 [lib]
 proc-macro = true
+
+[dev-dependencies]
+rspec = "1.0.0-beta.3"
