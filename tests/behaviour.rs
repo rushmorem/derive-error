@@ -7,9 +7,14 @@ use self::rspec::context::rdescribe;
 #[test]
 fn error_behaviour() {
     rdescribe("the implementation", |ctx| {
-        ctx.it("should be able to derive errors", || {
+        ctx.it("should be able to derive from empty enums", || {
             #[derive(Debug, Error)]
             pub enum _Error { };
+        });
+
+        ctx.it("should be able to derive from unit structs", || {
+            #[derive(Debug, Error)]
+            pub struct _Error;
         });
     });
 }
