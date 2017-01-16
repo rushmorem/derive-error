@@ -1,7 +1,7 @@
 #[macro_use] extern crate derive_error;
 
 #[derive(Debug, Error)]
-pub enum _Error1 { }
+pub struct _Error1;
 
 #[derive(Debug, Error)]
 pub enum _Error2 {

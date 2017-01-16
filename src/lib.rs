@@ -41,11 +41,12 @@ impl Error {
 
     // Derives a new error
     fn derive(mut self) -> Tokens {
+        let name = self.ast.ident.clone();
         match self.ast.body.clone() {
             Struct(ref variants) => {
                 match *variants {
                     syn::VariantData::Unit => {
-                        self.empty();
+                        self.struct_unit();
                     }
                     _ => {
                         panic!("Only deriving from unit structs is supported. Use an enum instead.");
@@ -55,7 +56,8 @@ impl Error {
 
             Enum(ref variants) => {
                 if variants.is_empty() {
-                    self.empty();
+                    let msg = format!("{0} looks awkward with no variants. Please use a struct unit instead. Example: `struct {0};`", name);
+                    panic!(msg);
                 } else {
                     for var in variants {
                         let var_name = &var.ident;
@@ -87,7 +89,6 @@ impl Error {
         let description = &self.description;
         let cause = &self.cause;
         let from_impls = &self.from_impls;
-        let name = &self.ast.ident;
 
         quote! {
             impl #impl_generics ::std::fmt::Display for #name #ty_generics #where_clause {
@@ -125,7 +126,10 @@ impl Error {
         self.display.append_all(&[quote!{ #name::#var_name(_) => write!(f, #msg), }]);
         self.description.append_all(&[quote!{ #name::#var_name(ref err) => err.description(), }]);
         self.cause.append_all(&[quote!{ #name::#var_name(ref err) => Some(err), }]);
-        let field = fields.clone().into_iter().next().expect("A tuple must have at least 1 field");
+        let field = fields.clone().into_iter().next().unwrap_or_else(|| {
+            let msg = format!("{0} looks awkward with no fields. Did you mean to add a type, eg. `{}(::std::io::Error)` but forgot?", var_name);
+            panic!(msg);
+        });
         let typ = field.ty;
         self.from_impls.append_all(&[quote!{
             impl #impl_generics From<#typ> for #name #ty_generics #where_clause {
@@ -139,8 +143,11 @@ impl Error {
     // Configures a struct field
     fn struct_field(&mut self, var_name: &Ident, msg: &str, fields: &Vec<syn::Field>) {
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
-        let field = fields.clone().into_iter().next().expect("A struct must have at least 1 field");
-        let field_name = field.ident.expect("A struct field must have an identifier");
+        let field = fields.clone().into_iter().next().unwrap_or_else(|| {
+            let msg = format!("{0} looks awkward with not fields in it. Please use a struct unit instead. Example: `struct {0};`", var_name);
+            panic!(msg);
+        });
+        let field_name = field.ident.unwrap();
         let typ = field.ty;
         let name = &self.ast.ident;
         self.display.append_all(&[quote!{ #name::#var_name{..} => write!(f, #msg), }]);
@@ -158,7 +165,7 @@ impl Error {
     }
 
     // Creates an error from a unit struct or an enum without any variants
-    fn empty(&mut self) {
+    fn struct_unit(&mut self) {
         let doc = self.title(&self.ast.attrs).unwrap_or_else(|| self.label_str(&self.ast.ident.to_string()));
         self.display.append_all(&[quote!{ write!(f, #doc) }]);
         self.description.append_all(&[quote!{ #doc }]);
