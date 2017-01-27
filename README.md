@@ -10,7 +10,7 @@ Add this crate to your dependencies section:-
 
 ```toml
 [dependencies]
-derive-error = "0.0.1"
+derive-error = "0.0.2"
 ```
 
 Import it in your `main.rs` or `lib.rs`:-
@@ -34,4 +34,4 @@ enum CliError {
 }
 ```
 
-This will derive implementations for `Display`, `Error` and `From`.
+This will derive implementations for `Display`, `Error` and `From`. See [the reql crate](https://github.com/rust-rethinkdb/reql/blob/master/src/errors.rs) for a real world example of how to use this crate.
