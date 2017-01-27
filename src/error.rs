@@ -28,15 +28,8 @@ impl Error {
     pub fn derive(mut self) -> Tokens {
         let name = self.ast.ident.clone();
         match self.ast.body.clone() {
-            Struct(ref variants) => {
-                match *variants {
-                    syn::VariantData::Unit => {
-                        self.struct_unit();
-                    }
-                    _ => {
-                        panic!("Only deriving from unit structs is supported. Use an enum instead.");
-                    }
-                }
+            Struct(_) => {
+                panic!("Deriving errors from structs is not supported. Use an enum instead.");
             }
 
             Enum(ref variants) => {
@@ -96,16 +89,20 @@ impl Error {
     }
 
     // Configures a unit variant of an enum
-    fn unit_variant(&mut self, var: &Variant, msg: &str) {
+    fn unit_variant(&mut self, var: &Variant, mut msg: &str) {
         let name = &self.ast.ident;
         let var_name = &var.ident;
+        let info = var.info();
+        if let Some(ref message) = info.msg {
+            msg = message;
+        }
         self.display.append_all(&[quote!{ #name::#var_name => write!(f, #msg), }]);
         self.description.append_all(&[quote!{ #name::#var_name => #msg, }]);
         self.cause.append_all(&[quote!{ #name::#var_name => None, }]);
     }
 
     // Configures a tuple variant of an enum
-    fn tuple_variant(&mut self, var: &Variant, msg: &str, fields: &Vec<syn::Field>) {
+    fn tuple_variant(&mut self, var: &Variant, mut msg: &str, fields: &Vec<syn::Field>) {
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
         let name = &self.ast.ident;
         let var_name = &var.ident;
@@ -114,6 +111,9 @@ impl Error {
             panic!(msg);
         });
         let info = var.info();
+        if let Some(ref message) = info.msg {
+            msg = message;
+        }
         if info.msg_embedded {
             self.display.append_all(&[quote!{ #name::#var_name(ref msg) => write!(f, "{}", msg.as_str()), }]);
         } else {
@@ -130,8 +130,8 @@ impl Error {
             }
             self.cause.append_all(&[quote!{ #name::#var_name(_) => None, }]);
         }
-        let typ = field.ty;
         if info.from {
+            let typ = field.ty;
             self.from_impls.append_all(&[quote!{
                 impl #impl_generics From<#typ> for #name #ty_generics #where_clause {
                     fn from(err: #typ) -> #name #ty_generics {
@@ -143,7 +143,7 @@ impl Error {
     }
 
     // Configures a struct field
-    fn struct_field(&mut self, var: &Variant, msg: &str, fields: &Vec<syn::Field>) {
+    fn struct_field(&mut self, var: &Variant, mut msg: &str, fields: &Vec<syn::Field>) {
         let var_name = &var.ident;
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
         let field = fields.clone().into_iter().next().unwrap_or_else(|| {
@@ -154,6 +154,9 @@ impl Error {
         let field_name = field.ident.unwrap();
         let typ = field.ty;
         let name = &self.ast.ident;
+        if let Some(ref message) = info.msg {
+            msg = message;
+        }
         if info.msg_embedded {
             self.display.append_all(&[quote!{ #name::#var_name{ref #field_name} => write!(f, "{}", #field_name.as_str()), }]);
         } else {
@@ -181,14 +184,6 @@ impl Error {
                 }
             }]);
         }
-    }
-
-    // Creates an error from a unit struct or an enum without any variants
-    fn struct_unit(&mut self) {
-        let doc = self.title(&self.ast.attrs).unwrap_or_else(|| self.label_str(&self.ast.ident.to_string()));
-        self.display.append_all(&[quote!{ write!(f, #doc) }]);
-        self.description.append_all(&[quote!{ #doc }]);
-        self.cause.append_all(&[quote!{ None }]);
     }
 
     // Extracts the title of an error from a doc comment
