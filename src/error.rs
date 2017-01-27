@@ -1,7 +1,7 @@
 use case::CaseExt;
 use quote::Tokens;
 use syn::Body::{Struct, Enum};
-use syn::{self, MacroInput, Ident};
+use syn::{self, MetaItem, NestedMetaItem, Lit, MacroInput, Variant};
 
 #[derive(Debug)]
 pub struct Error {
@@ -45,17 +45,16 @@ impl Error {
                     panic!(msg);
                 } else {
                     for var in variants {
-                        let var_name = &var.ident;
-                        let msg = self.title(&var.attrs).unwrap_or_else(|| self.label_str(&var_name.to_string()));
+                        let msg = self.title(&var.attrs).unwrap_or_else(|| self.label_str(&var.ident.to_string()));
                         match var.data {
                             syn::VariantData::Unit => {
-                                self.unit_variant(var_name, &msg);
+                                self.unit_variant(var, &msg);
                             }
                             syn::VariantData::Tuple(ref fields) => {
-                                self.tuple_variant(var_name, &msg, fields);
+                                self.tuple_variant(var, &msg, fields);
                             }
                             syn::VariantData::Struct(ref fields) => {
-                                self.struct_field(var_name, &msg, fields);
+                                self.struct_field(var, &msg, fields);
                             }
                         }
                     }
@@ -97,56 +96,91 @@ impl Error {
     }
 
     // Configures a unit variant of an enum
-    fn unit_variant(&mut self, var_name: &Ident, msg: &str) {
+    fn unit_variant(&mut self, var: &Variant, msg: &str) {
         let name = &self.ast.ident;
+        let var_name = &var.ident;
         self.display.append_all(&[quote!{ #name::#var_name => write!(f, #msg), }]);
         self.description.append_all(&[quote!{ #name::#var_name => #msg, }]);
         self.cause.append_all(&[quote!{ #name::#var_name => None, }]);
     }
 
     // Configures a tuple variant of an enum
-    fn tuple_variant(&mut self, var_name: &Ident, msg: &str, fields: &Vec<syn::Field>) {
+    fn tuple_variant(&mut self, var: &Variant, msg: &str, fields: &Vec<syn::Field>) {
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
         let name = &self.ast.ident;
-        self.display.append_all(&[quote!{ #name::#var_name(_) => write!(f, #msg), }]);
-        self.description.append_all(&[quote!{ #name::#var_name(ref err) => err.description(), }]);
-        self.cause.append_all(&[quote!{ #name::#var_name(ref err) => Some(err), }]);
+        let var_name = &var.ident;
         let field = fields.clone().into_iter().next().unwrap_or_else(|| {
             let msg = format!("{0} looks awkward with no fields. Did you mean to add a type, eg. `{}(::std::io::Error)` but forgot?", var_name);
             panic!(msg);
         });
-        let typ = field.ty;
-        self.from_impls.append_all(&[quote!{
-            impl #impl_generics From<#typ> for #name #ty_generics #where_clause {
-                fn from(err: #typ) -> #name #ty_generics {
-                    #name::#var_name(err)
-                }
+        let info = var.info();
+        if info.msg_embedded {
+            self.display.append_all(&[quote!{ #name::#var_name(ref msg) => write!(f, "{}", msg.as_str()), }]);
+        } else {
+            self.display.append_all(&[quote!{ #name::#var_name(_) => write!(f, #msg), }]);
+        }
+        if info.std {
+            self.description.append_all(&[quote!{ #name::#var_name(ref err) => err.description(), }]);
+            self.cause.append_all(&[quote!{ #name::#var_name(ref err) => Some(err), }]);
+        } else {
+            if info.msg_embedded {
+                self.description.append_all(&[quote!{ #name::#var_name(ref msg) => msg.as_str(), }]);
+            } else {
+                self.description.append_all(&[quote!{ #name::#var_name(_) => #msg, }]);
             }
-        }]);
+            self.cause.append_all(&[quote!{ #name::#var_name(_) => None, }]);
+        }
+        let typ = field.ty;
+        if info.from {
+            self.from_impls.append_all(&[quote!{
+                impl #impl_generics From<#typ> for #name #ty_generics #where_clause {
+                    fn from(err: #typ) -> #name #ty_generics {
+                        #name::#var_name(err)
+                    }
+                }
+            }]);
+        }
     }
 
     // Configures a struct field
-    fn struct_field(&mut self, var_name: &Ident, msg: &str, fields: &Vec<syn::Field>) {
+    fn struct_field(&mut self, var: &Variant, msg: &str, fields: &Vec<syn::Field>) {
+        let var_name = &var.ident;
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
         let field = fields.clone().into_iter().next().unwrap_or_else(|| {
             let msg = format!("{0} looks awkward with not fields in it. Please use a struct unit instead. Example: `struct {0};`", var_name);
             panic!(msg);
         });
+        let info = var.info();
         let field_name = field.ident.unwrap();
         let typ = field.ty;
         let name = &self.ast.ident;
-        self.display.append_all(&[quote!{ #name::#var_name{..} => write!(f, #msg), }]);
-        self.description.append_all(&[quote!{ #name::#var_name{ref #field_name} => #field_name.description(), }]);
-        self.cause.append_all(&[quote!{ #name::#var_name{ref #field_name} => Some(#field_name), }]);
-        self.from_impls.append_all(&[quote!{
-            impl #impl_generics From<#typ> for #name #ty_generics #where_clause {
-                fn from(err: #typ) -> #name #ty_generics {
-                    #name::#var_name{
-                        #field_name: err,
+        if info.msg_embedded {
+            self.display.append_all(&[quote!{ #name::#var_name{ref #field_name} => write!(f, "{}", #field_name.as_str()), }]);
+        } else {
+            self.display.append_all(&[quote!{ #name::#var_name{..} => write!(f, #msg), }]);
+        }
+        if info.std {
+            self.description.append_all(&[quote!{ #name::#var_name{ref #field_name} => #field_name.description(), }]);
+            self.cause.append_all(&[quote!{ #name::#var_name{ref #field_name} => Some(#field_name), }]);
+        } else {
+            if info.msg_embedded {
+                self.description.append_all(&[quote!{ #name::#var_name{ref #field_name} => #field_name.as_str(), }]);
+            } else {
+                self.description.append_all(&[quote!{ #name::#var_name{..} => #msg, }]);
+            }
+            self.cause.append_all(&[quote!{ #name::#var_name{..} => None, }]);
+        }
+        if info.from {
+            self.from_impls.append_all(&[quote!{
+                impl #impl_generics From<#typ> for #name #ty_generics #where_clause {
+                    fn from(err: #typ) -> #name #ty_generics {
+                        #name::#var_name{
+                            #field_name: err,
+                        }
                     }
                 }
-            }
-        }]);
+            }]);
+        }
     }
 
     // Creates an error from a unit struct or an enum without any variants
@@ -182,5 +216,67 @@ impl Error {
             .replace("_", " ")
             .trim()
             .to_lowercase()
+    }
+}
+
+struct VariantInfo {
+    from: bool,
+    std: bool,
+    msg_embedded: bool,
+    msg: Option<String>,
+}
+
+trait Info {
+    type Output;
+
+    fn info(&self) -> Self::Output;
+}
+
+impl Info for Variant {
+    type Output = VariantInfo;
+
+    fn info(&self) -> VariantInfo {
+        let mut info = VariantInfo {
+            from: true,
+            std: true,
+            msg_embedded: false,
+            msg: None,
+        };
+
+        for attr in self.attrs.iter() {
+            if let MetaItem::List(ref key, ref val) = attr.value {
+                if key == "error" {
+                    for item in val {
+                        if let NestedMetaItem::MetaItem(MetaItem::Word(ref key)) = *item {
+                            if key == "no_from" {
+                                info.from = false;
+                            }
+                            if key == "non_std" {
+                                info.std = false;
+                            }
+                            if key == "msg_embedded" {
+                                info.msg_embedded = true;
+                            }
+                        }
+
+                        if let NestedMetaItem::MetaItem(MetaItem::NameValue(ref key, ref val)) = *item {
+                            if key == "msg" {
+                                if let Lit::Str(ref msg, _) = *val {
+                                    info.msg = Some(msg.to_string());
+                                } else {
+                                    let msg = format!("{} does not have a string value for `msg`", self.ident);
+                                    panic!(msg);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if info.msg_embedded && info.msg.is_some() {
+            let msg = format!("{} can't have both error `msg` and `msg_embedded` set", self.ident);
+            panic!(msg);
+        }
+        info
     }
 }

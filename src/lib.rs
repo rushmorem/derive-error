@@ -11,9 +11,9 @@ mod error;
 use proc_macro::TokenStream;
 use error::Error;
 
-#[proc_macro_derive(Error)]
+#[proc_macro_derive(Error, attributes(error))]
 pub fn derive_error(input: TokenStream) -> TokenStream {
     let source = input.to_string();
-    let ast = syn::parse_macro_input(&source).unwrap();
-    Error::new(ast).derive().parse().unwrap()
+    let ast = syn::parse_macro_input(&source).expect("failed to parse the error defination");
+    Error::new(ast).derive().parse().expect("failed to parse the derived output")
 }
