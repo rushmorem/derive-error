@@ -34,7 +34,7 @@ impl Error {
 
             Enum(ref variants) => {
                 if variants.is_empty() {
-                    let msg = format!("{0} looks awkward with no variants. Please use a struct unit instead. Example: `struct {0};`", name);
+                    let msg = format!("{0} has no variants", name);
                     panic!(msg);
                 } else {
                     for var in variants {
@@ -89,20 +89,22 @@ impl Error {
     }
 
     // Configures a unit variant of an enum
-    fn unit_variant(&mut self, var: &Variant, mut msg: &str) {
+    fn unit_variant(&mut self, var: &Variant, msg: &str) {
         let name = &self.ast.ident;
         let var_name = &var.ident;
         let info = var.info();
-        if let Some(ref message) = info.msg {
-            msg = message;
-        }
+        let msg = if let Some(ref message) = info.msg {
+            message.to_string()
+        } else {
+            msg.to_string()
+        };
         self.display.append_all(&[quote!{ #name::#var_name => write!(f, #msg), }]);
         self.description.append_all(&[quote!{ #name::#var_name => #msg, }]);
         self.cause.append_all(&[quote!{ #name::#var_name => None, }]);
     }
 
     // Configures a tuple variant of an enum
-    fn tuple_variant(&mut self, var: &Variant, mut msg: &str, fields: &Vec<syn::Field>) {
+    fn tuple_variant(&mut self, var: &Variant, msg: &str, fields: &Vec<syn::Field>) {
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
         let name = &self.ast.ident;
         let var_name = &var.ident;
@@ -111,9 +113,11 @@ impl Error {
             panic!(msg);
         });
         let info = var.info();
-        if let Some(ref message) = info.msg {
-            msg = message;
-        }
+        let msg = if let Some(ref message) = info.msg {
+            message.to_string()
+        } else {
+            msg.to_string()
+        };
         if info.msg_embedded {
             self.display.append_all(&[quote!{ #name::#var_name(ref msg) => write!(f, "{}", msg.as_str()), }]);
         } else {
@@ -143,7 +147,7 @@ impl Error {
     }
 
     // Configures a struct field
-    fn struct_field(&mut self, var: &Variant, mut msg: &str, fields: &Vec<syn::Field>) {
+    fn struct_field(&mut self, var: &Variant, msg: &str, fields: &Vec<syn::Field>) {
         let var_name = &var.ident;
         let (impl_generics, ty_generics, where_clause) = self.ast.generics.split_for_impl();
         let field = fields.clone().into_iter().next().unwrap_or_else(|| {
@@ -154,9 +158,11 @@ impl Error {
         let field_name = field.ident.unwrap();
         let typ = field.ty;
         let name = &self.ast.ident;
-        if let Some(ref message) = info.msg {
-            msg = message;
-        }
+        let msg = if let Some(ref message) = info.msg {
+            message.to_string()
+        } else {
+            msg.to_string()
+        };
         if info.msg_embedded {
             self.display.append_all(&[quote!{ #name::#var_name{ref #field_name} => write!(f, "{}", #field_name.as_str()), }]);
         } else {
