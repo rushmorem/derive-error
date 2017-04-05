@@ -17,7 +17,7 @@ Import it in your `main.rs` or `lib.rs`:-
 
 ```rust,ignore
 #[macro_use]
-extern crate derive-error;
+extern crate derive_error;
 ```
 
 Deriving errors is simple. Simply create an enum for your errors as suggested [in the Rust book](https://doc.rust-lang.org/book/error-handling.html#error-handling-with-a-custom-type), add short descriptions for the enum variants using doc comments, throw in a `#[derive(Debug, Error)]` and you are done. Here is the example in the book implemented using this library:-
