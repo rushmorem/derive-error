@@ -194,19 +194,31 @@ impl Error {
 
     // Extracts the title of an error from a doc comment
     fn title(&self, attributes: &Vec<syn::Attribute>) -> Option<String> {
+        let mut title = None;
         for attr in attributes {
             if attr.is_sugared_doc {
                 if let syn::MetaItem::NameValue(_, syn::Lit::Str(ref doc, _)) = attr.value {
                     for line in doc.lines() {
-                        let doc = line.trim_left_matches("///").trim();
+                        let doc = line.trim_left_matches("///");
                         if !doc.is_empty() {
-                            return Some(doc.to_lowercase());
+                            match title {
+                                None => {
+                                    title = Some(doc.to_string());
+                                }
+                                Some(ref mut title) => {
+                                    title.push_str(doc);
+                                }
+                            }
+                        } else {
+                            if title.is_some() {
+                                return trimmed(title);
+                            }
                         }
                     }
                 }
             }
         }
-        None
+        trimmed(title)
     }
 
     // Creates a human friendly string from the fieldname of an enum variant
@@ -218,6 +230,10 @@ impl Error {
             .trim()
             .to_lowercase()
     }
+}
+
+fn trimmed(title: Option<String>) -> Option<String> {
+    title.map(|doc| doc.trim().to_string())
 }
 
 struct VariantInfo {
