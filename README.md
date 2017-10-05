@@ -10,7 +10,7 @@ Add this crate to your dependencies section:-
 
 ```toml
 [dependencies]
-derive-error = "0.0.3"
+derive-error = "0.0.4"
 ```
 
 Import it in your `main.rs` or `lib.rs`:-
