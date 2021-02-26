@@ -199,7 +199,7 @@ impl Error {
             if attr.is_sugared_doc {
                 if let syn::MetaItem::NameValue(_, syn::Lit::Str(ref doc, _)) = attr.value {
                     for line in doc.lines() {
-                        let doc = line.trim_left_matches("///");
+                        let doc = line.trim_start_matches("///");
                         if !doc.is_empty() {
                             match title {
                                 None => {
